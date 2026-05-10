@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { upload } from '@vercel/blob/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +21,7 @@ export function UploadForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [statusText, setStatusText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const notesInputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +31,7 @@ export function UploadForm() {
     e.preventDefault();
     setError(null);
     setUploading(true);
-    setUploadProgress(0);
+    setStatusText('Uploading audio...');
 
     try {
       const audioFile = audioInputRef.current?.files?.[0];
@@ -49,15 +48,22 @@ export function UploadForm() {
         clinicianNotesFileName = notesFile.name;
       }
 
-      const blob = await upload(audioFile.name, audioFile, {
-        access: 'public',
-        handleUploadUrl: '/api/upload',
-        onUploadProgress: (progress) => {
-          setUploadProgress(progress.percentage);
-        },
+      const formData = new FormData();
+      formData.append('file', audioFile);
+
+      const uploadResponse = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
       });
 
-      setUploadProgress(100);
+      if (!uploadResponse.ok) {
+        const data = await uploadResponse.json();
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      const blob: { url: string } = await uploadResponse.json();
+
+      setStatusText('Starting transcription...');
 
       const response = await fetch('/api/sessions', {
         method: 'POST',
@@ -83,7 +89,7 @@ export function UploadForm() {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);
-      setUploadProgress(0);
+      setStatusText('');
     }
   }
 
@@ -138,17 +144,7 @@ export function UploadForm() {
           </div>
 
           {uploading && (
-            <div className="space-y-1">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                <div
-                  className="h-full bg-blue-600 transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-              <p className="text-xs text-gray-500">
-                {uploadProgress < 100 ? 'Uploading audio...' : 'Starting transcription...'}
-              </p>
-            </div>
+            <p className="text-xs text-gray-500">{statusText}</p>
           )}
 
           {error && (

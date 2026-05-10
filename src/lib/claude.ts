@@ -89,7 +89,7 @@ export async function generateSoapNotes(
   clinicianNotes: string | null,
 ): Promise<SoapNotes> {
   const message = await anthropic.messages.create({
-    model: 'claude-opus-4-7-20250219',
+    model: 'claude-opus-4-7',
     max_tokens: 4096,
     system: SYSTEM_PROMPT,
     messages: [
